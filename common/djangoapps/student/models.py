@@ -20,6 +20,7 @@ from collections import defaultdict, namedtuple
 from datetime import datetime, timedelta
 from functools import total_ordering
 from importlib import import_module
+from string import capwords
 from urllib.parse import urlencode
 
 import six
@@ -64,11 +65,14 @@ from lms.djangoapps.courseware.models import (
     DynamicUpgradeDeadlineConfiguration,
     OrgDynamicUpgradeDeadlineConfiguration
 )
+from lms.djangoapps.courseware.toggles import COURSEWARE_PROCTORING_IMPROVEMENTS
 from lms.djangoapps.verify_student.models import SoftwareSecurePhotoVerification
+from lms.djangoapps.verify_student.services import IDVerificationService
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.enrollments.api import (
     _default_course_mode,
     get_enrollment_attributes,
+    is_enrollment_valid_for_proctoring,
     set_enrollment_attributes
 )
 from openedx.core.djangoapps.signals.signals import USER_ACCOUNT_ACTIVATED
@@ -76,6 +80,8 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
 from openedx.core.djangoapps.xmodule_django.models import NoneToEmptyManager
 from openedx.core.djangolib.model_mixins import DeletableByUserValue
 from openedx.core.toggles import ENTRANCE_EXAMS
+from xmodule.modulestore.django import modulestore
+from common.djangoapps.student.emails import send_proctoring_requirements_email
 from common.djangoapps.student.signals import ENROLL_STATUS_CHANGE, ENROLLMENT_TRACK_UPDATED, UNENROLL_DONE
 from common.djangoapps.track import contexts, segment
 from common.djangoapps.util.model_utils import emit_field_changed_events, get_changed_fields_dict
@@ -1455,6 +1461,23 @@ class CourseEnrollment(models.Model):
                 self.send_signal(EnrollStatusChange.unenroll)
 
         if mode_changed:
+            if COURSEWARE_PROCTORING_IMPROVEMENTS.is_enabled(self.course_id):
+                # If mode changed to one that requires proctoring, send proctoring requirements email
+                course_module = modulestore().get_course(self.course_id)
+                if is_enrollment_valid_for_proctoring(self.user.username, self.course_id):
+                    # Humanize proctoring provider string
+                    proctoring_provider = capwords(course_module.proctoring_provider.replace('_', ' '))
+                    proctoring_requirements_url = settings.PROCTORING_SETTINGS.get('LINK_URLS', {}).get('faq', '')
+                    id_verification_url = IDVerificationService.get_verify_location()
+                    email_context = {
+                        'user': self.user,
+                        'course_name': self.course.display_name,
+                        'proctoring_provider': proctoring_provider,
+                        'proctoring_requirements_url': proctoring_requirements_url,
+                        'id_verification_url': id_verification_url,
+                    }
+                    send_proctoring_requirements_email(context=email_context)
+
             # Only emit mode change events when the user's enrollment
             # mode has changed from its previous setting
             self.emit_event(EVENT_NAME_ENROLLMENT_MODE_CHANGED)
@@ -2586,7 +2609,7 @@ def log_successful_logout(sender, request, user, **kwargs):
 
 @receiver(user_logged_in)
 @receiver(user_logged_out)
-def enforce_single_login(sender, request, user, signal, **kwargs):
+def enforce_single_login(sender, request, user, signal, **kwargs):  # pylint: disable=unused-argument
     """
     Sets the current session id in the user profile,
     to prevent concurrent logins.
