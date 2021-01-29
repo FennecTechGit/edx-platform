@@ -155,6 +155,9 @@ def fire_ungenerated_certificate_task(user, course_key, expected_verification_st
         generate_allowlist_certificate_task(user, course_key)
         return
 
+    log.info('{course} is not using allowlist certificates. The normal generation logic will be followed.'.format(
+        course=course_key, user=user.id))
+
     allowed_enrollment_modes_list = [
         CourseMode.VERIFIED,
         CourseMode.CREDIT_MODE,
