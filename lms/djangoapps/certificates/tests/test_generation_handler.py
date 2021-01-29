@@ -14,7 +14,7 @@ from xmodule.modulestore.tests.factories import CourseFactory
 
 from common.djangoapps.student.tests.factories import CourseEnrollmentFactory, UserFactory
 from lms.djangoapps.certificates.generation_handler import CERTIFICATES_USE_ALLOWLIST
-from lms.djangoapps.certificates.generation_handler import _is_using_certificate_allowlist, \
+from lms.djangoapps.certificates.generation_handler import is_using_certificate_allowlist, \
     _can_generate_allowlist_certificate_for_status, generate_allowlist_certificate_task, \
     can_generate_allowlist_certificate
 from lms.djangoapps.certificates.models import GeneratedCertificate, CertificateStatuses
@@ -61,14 +61,14 @@ class AllowlistTests(ModuleStoreTestCase):
         """
         Test the allowlist flag
         """
-        self.assertTrue(_is_using_certificate_allowlist(self.course_run_key))
+        self.assertTrue(is_using_certificate_allowlist(self.course_run_key))
 
     @override_waffle_flag(CERTIFICATES_USE_ALLOWLIST, active=False)
     def test_is_using_allowlist_false(self):
         """
         Test the allowlist flag without the override
         """
-        self.assertFalse(_is_using_certificate_allowlist(self.course_run_key))
+        self.assertFalse(is_using_certificate_allowlist(self.course_run_key))
 
     @ddt.data(
         (CertificateStatuses.deleted, True),

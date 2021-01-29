@@ -19,8 +19,7 @@ from lms.djangoapps.certificates.models import (
     CertificateWhitelist,
     GeneratedCertificate
 )
-from lms.djangoapps.certificates.signals import CERTIFICATE_DELAY_SECONDS
-from lms.djangoapps.certificates.tasks import generate_certificate
+from lms.djangoapps.certificates.tasks import CERTIFICATE_DELAY_SECONDS, generate_certificate
 from lms.djangoapps.verify_student.services import IDVerificationService
 from openedx.core.djangoapps.certificates.api import auto_certificate_generation_enabled
 from openedx.core.djangoapps.waffle_utils import CourseWaffleFlag
@@ -71,7 +70,7 @@ def can_generate_allowlist_certificate(user, course_key):
     Check if an allowlist certificate can be generated (created if it doesn't already exist, or updated if it does
     exist) for this user, in this course run.
     """
-    if not _is_using_certificate_allowlist(course_key):
+    if not is_using_certificate_allowlist(course_key):
         # This course run is not using the allowlist feature
         log.info(
             '{course} is not using the certificate allowlist. Certificate cannot be generated.'.format(
@@ -123,7 +122,7 @@ def can_generate_allowlist_certificate(user, course_key):
     return _can_generate_allowlist_certificate_for_status(cert)
 
 
-def _is_using_certificate_allowlist(course_key):
+def is_using_certificate_allowlist(course_key):
     """
     Check if the course run is using the allowlist, aka V2 of certificate whitelisting
     """
